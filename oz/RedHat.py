@@ -86,6 +86,10 @@ Subsystem	sftp	/usr/libexec/openssh/sftp-server
         # self.tunnels[hostname][port]
         self.tunnels = {}
 
+        self.icicle_cmd = oz.ozutil.config_get_key(config, 'redhat',
+                                                  'icicle_command',
+                                                  'rpm -qa')
+
     def _generate_new_iso(self):
         """
         Method to create a new ISO based on the modified CD/DVD.
@@ -464,7 +468,7 @@ Subsystem	sftp	/usr/libexec/openssh/sftp-server
         """
         self.log.debug("Generating ICICLE")
         stdout, stderr, retcode = self.guest_execute_command(guestaddr,
-                                                             'rpm -qa',
+                                                             self.icicle_cmd,
                                                              timeout=30)
 
         return self._output_icicle_xml(stdout.split("\n"),
