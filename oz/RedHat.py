@@ -1132,6 +1132,13 @@ class RedHatCDYumGuest(RedHatCDGuest):
                 self.log.info("No additional packages, files, or commands to install, and icicle generation not requested, skipping customization")
                 return
             elif action == "gen_and_mod":
+                # It is actually possible to get here with a "gen_and_mod"
+                # action but a TDL that contains no real customizations
+                # In the "safe ICICLE" code below it is important to know
+                # when we are truly in a "gen_only" state so we modify
+                # the action here if we detect that ICICLE generation is the
+                # only task to be done.
+                # TODO: See about doing this test earlier or in a more generic way
                 self.log.debug("Asked to gen_and_mod but no mods are present - changing action to gen_only")
                 action = "gen_only"
 
@@ -1141,7 +1148,9 @@ class RedHatCDYumGuest(RedHatCDGuest):
         # not match what is specified in the libvirt XML
         modified_xml = self._modify_libvirt_xml_for_serial(libvirt_xml)
 
-        if action == "gen_only":
+        if action == "gen_only" and self.safe_icicle_gen:
+            # We are only generating ICICLE and the user has asked us to do this without modifying
+            # the completed image by booting it.
             # Create a copy on write snapshot to use for ICICLE generation - discard when finished
             cow_diskimage = self.diskimage + "-icicle-snap.qcow2"
             self._internal_generate_diskimage(force=True,
@@ -1172,38 +1181,13 @@ class RedHatCDYumGuest(RedHatCDGuest):
             finally:
                 self._shutdown_guest(guestaddr, libvirt_dom)
         finally:
-            if action == "gen_only":
+            if action == "gen_only" and self.safe_icicle_gen::
                 # no need to teardown because we simply discard the file containing those changes
                 os.unlink(cow_diskimage)
             else:
                 self._collect_teardown(modified_xml)
 
         return icicle
-
-    def _modify_libvirt_xml_diskimage(self, libvirt_xml, new_diskimage, image_type):
-        self.log.debug("Modifying libvirt XML to use disk image (%s) of type (%s)" % (new_diskimage, image_type))
-        input_doc = libxml2.parseDoc(libvirt_xml)
-        disks = input_doc.xpathEval('/domain/devices/disk')
-        if len(disks) != 1:
-            self.log.warning("Oz given a libvirt domain with more than 1 disk; using the first one parsed")
-
-        source = disks[0].xpathEval('source')
-        if len(source) != 1:
-            raise oz.OzException.OzException("invalid <disk> entry without a source")
-        source[0].setProp('file', new_diskimage)
-
-        driver = disks[0].xpathEval('driver')
-        # at the time this function was added, all boot disk device stanzas have a driver section - even raw images
-        if len(driver) == 1:
-            driver[0].setProp('type', image_type)
-        else:
-            raise oz.OzException.OzException("Found a disk with an unexpected number of driver sections")
-
-        xml = input_doc.serialize(None, 1)
-        self.log.debug("Generated XML:\n%s" % (xml))
-        return xml
-
-
 
     def customize(self, libvirt_xml):
         """
