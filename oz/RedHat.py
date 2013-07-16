@@ -1181,7 +1181,7 @@ class RedHatCDYumGuest(RedHatCDGuest):
             finally:
                 self._shutdown_guest(guestaddr, libvirt_dom)
         finally:
-            if action == "gen_only" and self.safe_icicle_gen::
+            if action == "gen_only" and self.safe_icicle_gen:
                 # no need to teardown because we simply discard the file containing those changes
                 os.unlink(cow_diskimage)
             else:
