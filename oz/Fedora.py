@@ -111,7 +111,7 @@ class FedoraGuest(oz.RedHat.RedHatLinuxCDYumGuest):
 
         serial = self.lxml_subelement(devices, "channel", None, {'type':'tcp'})
         self.lxml_subelement(serial, "source", None,
-                              {'mode':'bind', 'path':'/tmp/oz-listener-%d' % (self.listen_port))
+                              {'mode':'bind', 'path':'/tmp/oz-listener-%d' % (self.listen_port)})
         #self.lxml_subelement(serial, "source", None,
         #                     {'mode':'bind', 'host':'127.0.0.1', 'service':str(self.listen_port)})
         self.lxml_subelement(serial, "protocol", None, {'type':'raw'})
