@@ -715,7 +715,7 @@ class Guest(object):
                 raise oz.OzException.OzException("Unknown libvirt error")
 
     def _wait_for_install_finish(self, libvirt_dom, count,
-                                 inactivity_timeout=300):
+                                 inactivity_timeout=1000):
         """
         Method to wait for an installation to finish.  This will wait around
         until either the VM has gone away (at which point it is assumed the
@@ -734,11 +734,12 @@ class Guest(object):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(1)
         sock.connect(('127.0.0.1', self.listen_port))
+        self.log.debug("Using listen port (%d)" % (self.listen_port))
         data = StringIO.StringIO()
 
         while count > 0 and inactivity_countdown > 0:
-            #if count % 10 == 0:
-            #    self.log.debug("Waiting for %s to finish installing, %d/%d" % (self.tdl.name, count, origcount))
+            if count % 10 == 0:
+                self.log.debug("%s - Waiting for %s to finish installing, %d/%d" % (time.strftime("%H:%M:%S"), self.tdl.name, count, origcount))
             do_sleep = True
             try:
                 # Save most recently logged location in string
