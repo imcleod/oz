@@ -731,9 +731,9 @@ class Guest(object):
         origcount = count
         saved_exception = None
 
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         sock.settimeout(1)
-        sock.connect(('127.0.0.1', self.listen_port))
+        sock.connect('/tmp/oz-listener-%d' % (self.listen_port))
         self.log.debug("Using listen port (%d)" % (self.listen_port))
         data = StringIO.StringIO()
 
