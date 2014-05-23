@@ -801,6 +801,11 @@ class Guest(object):
             if do_sleep:
                 time.sleep(1)
 
+        try:
+            sock.close()
+        except:
+            pass
+
         # We get here because of a libvirt exception, an absolute timeout, or
         # an I/O timeout; we sort this out below
         if count == 0:
