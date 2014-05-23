@@ -43,6 +43,7 @@ import base64
 import hashlib
 import errno
 import re
+import StringIO
 
 import oz.ozutil
 import oz.OzException
@@ -729,9 +730,39 @@ class Guest(object):
         inactivity_countdown = inactivity_timeout
         origcount = count
         saved_exception = None
+
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(1)
+        sock.connect(('127.0.0.1', self.listen_port))
+        data = StringIO.StringIO()
+
         while count > 0 and inactivity_countdown > 0:
-            if count % 10 == 0:
-                self.log.debug("Waiting for %s to finish installing, %d/%d" % (self.tdl.name, count, origcount))
+            #if count % 10 == 0:
+            #    self.log.debug("Waiting for %s to finish installing, %d/%d" % (self.tdl.name, count, origcount))
+            do_sleep = True
+            try:
+                # Save most recently logged location in string
+                origpos=data.tell()
+                # Now seek to end to write new content
+                data.seek(0,2)
+                data.write(sock.recv(10000))
+                # If we wrote successfully, return to original log point
+                data.seek(origpos)
+            except socket.timeout:
+                # the socket times out after 1 second.  We can just fall
+                # through to the below code because it is a noop, *except* that
+                # we don't want to sleep.  Set the flag
+                do_sleep = False
+
+	    for line in data:
+		if line[-1] != '\n':
+		    # This is an incomplete line - don't print it yet - move the pointer back
+		    # and allow it to print out on the next time around
+		    data.seek(0-len(line),2)
+		    break
+		else:
+		    self.log.debug(line.rstrip())            
+
             try:
                 total_disk_req, total_net_bytes = self._get_disk_and_net_activity(libvirt_dom, disks, interfaces)
             except libvirt.libvirtError as e:
@@ -766,7 +797,8 @@ class Guest(object):
             last_disk_activity = total_disk_req
             last_network_activity = total_net_bytes
             count -= 1
-            time.sleep(1)
+            if do_sleep:
+                time.sleep(1)
 
         # We get here because of a libvirt exception, an absolute timeout, or
         # an I/O timeout; we sort this out below

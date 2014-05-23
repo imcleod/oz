@@ -104,6 +104,19 @@ class FedoraGuest(oz.RedHat.RedHatLinuxCDYumGuest):
         else:
             return oz.ozutil.generate_full_auto_path(self.tdl.distro + self.tdl.update + ".auto")
 
+    def _generate_serial_xml(self, devices):
+        """
+        Method to generate the serial portion of the libvirt XML.
+        """
+
+        serial = self.lxml_subelement(devices, "channel", None, {'type':'tcp'})
+        self.lxml_subelement(serial, "source", None,
+                             {'mode':'bind', 'host':'127.0.0.1', 'service':str(self.listen_port)})
+        self.lxml_subelement(serial, "protocol", None, {'type':'raw'})
+        self.lxml_subelement(serial, "target", None, {'type':'virtio', 'name':'org.fedoraproject.anaconda.log.0'})
+        self.lxml_subelement(serial, "address", None, {'type':'virtio-serial', 'controller':'0', 'bus':'0', 'port':'1'})
+
+
 def get_class(tdl, config, auto, output_disk=None, netdev=None, diskbus=None,
               macaddress=None):
     """
