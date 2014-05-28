@@ -34,6 +34,9 @@ class RHEL7Guest(oz.RedHat.RedHatLinuxCDYumGuest):
         oz.RedHat.RedHatLinuxCDYumGuest.__init__(self, tdl, config, auto,
                                                  output_disk, netdev, diskbus,
                                                  True, True, "cpio", macaddress)
+        # Extract lots of useful debug output that is pulled from the sockets created below
+        self.cmdline += " rd.debug systemd.log_level=debug systemd.log_target=console"
+        self.cmdline += " console=tty0 console=ttyS1"
 
     def _modify_iso(self):
         """
@@ -56,6 +59,14 @@ class RHEL7Guest(oz.RedHat.RedHatLinuxCDYumGuest):
         Method to create the correct path to the RHEL 7 kickstart file.
         """
         return oz.ozutil.generate_full_auto_path("RHEL7.auto")
+
+    def _do_virtio_conlog(self):
+        """
+        Method to determine if the guest should be presented with extra serial and virtio
+        devices for install logging.  RHEL 7 is the first RHEL to support this
+        """
+        return True
+
 
 def get_class(tdl, config, auto, output_disk=None, netdev=None, diskbus=None,
               macaddress=None):

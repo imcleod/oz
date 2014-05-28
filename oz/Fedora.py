@@ -24,6 +24,7 @@ import os
 import oz.ozutil
 import oz.RedHat
 import oz.OzException
+import lxml.etree
 
 class FedoraGuest(oz.RedHat.RedHatLinuxCDYumGuest):
     """
@@ -47,6 +48,16 @@ class FedoraGuest(oz.RedHat.RedHatLinuxCDYumGuest):
 
         self.haverepo = haverepo
         self.brokenisomethod = brokenisomethod
+
+        # Extract lots of useful debug output that is pulled from the sockets created below
+        if int(self.tdl.update) >= 14:
+            if self.tdl.arch in [ 'ppc64', 'ppc64le' ]:
+                console_device = '/dev/hvc1'
+            else:
+                console_device = '/dev/ttyS1' 
+
+            self.cmdline += " rd.debug systemd.log_level=debug systemd.log_target=console"
+            self.cmdline += " console=tty0 console=%s" % (console_device)
 
     def _modify_iso(self):
         """
@@ -103,6 +114,17 @@ class FedoraGuest(oz.RedHat.RedHatLinuxCDYumGuest):
             return oz.ozutil.generate_full_auto_path(self.tdl.distro + self.assumed_update + ".auto")
         else:
             return oz.ozutil.generate_full_auto_path(self.tdl.distro + self.tdl.update + ".auto")
+
+    def _do_virtio_conlog(self):
+        """
+        Method to determine if the guest should be presented with extra serial and virtio
+        devices for install logging.  For Fedora, this feature is available after F14
+        """
+        if int(self.tdl.update) >= 14:
+            return True
+        else:
+            return False
+
 
 def get_class(tdl, config, auto, output_disk=None, netdev=None, diskbus=None,
               macaddress=None):
