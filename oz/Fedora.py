@@ -49,6 +49,11 @@ class FedoraGuest(oz.RedHat.RedHatLinuxCDYumGuest):
         self.haverepo = haverepo
         self.brokenisomethod = brokenisomethod
 
+        # Extract lots of useful debug output that is pulled from the sockets created below
+        if int(self.tdl.update) >= 14:
+           self.cmdline += " rd.debug systemd.log_level=debug systemd.log_target=console"
+           self.cmdline += " console=tty0 console=ttyS1"
+
     def _modify_iso(self):
         """
         Method to modify the ISO for autoinstallation.
@@ -113,12 +118,24 @@ class FedoraGuest(oz.RedHat.RedHatLinuxCDYumGuest):
             #Newer versions of Anaconda look for a named virtio chanel and, if it is present
             #pass a great deal of helpful debug info over it.  This change to the libvirt XML
             #allows Oz to capture and log that information
-	    serial = self.lxml_subelement(devices, "channel", None, {'type':'unix'})
+            socket_filename = self.install_logging_domain_socket_base + "-virtio"
+            self.install_logging_domain_sockets.append(socket_filename)
+	    virtio = self.lxml_subelement(devices, "channel", None, {'type':'unix'})
+	    self.lxml_subelement(virtio, "source", None,
+				  {'mode':'bind', 'path':socket_filename})
+	    self.lxml_subelement(virtio, "protocol", None, {'type':'raw'})
+	    self.lxml_subelement(virtio, "target", None, {'type':'virtio', 'name':'org.fedoraproject.anaconda.log.0'})
+	    self.lxml_subelement(virtio, "address", None, {'type':'virtio-serial', 'controller':'0', 'bus':'0', 'port':'0'})
+
+            # Alas, some early boot information is only available via serial console
+            # so we create a socket for that as well and log output from both of them
+            socket_filename = self.install_logging_domain_socket_base + "-ttyS1"
+            self.install_logging_domain_sockets.append(socket_filename)
+	    serial = self.lxml_subelement(devices, "serial", None, {'type':'unix'})
 	    self.lxml_subelement(serial, "source", None,
-				  {'mode':'bind', 'path':self.listen_domain_socket})
+				 {'mode':'bind', 'path':socket_filename})
 	    self.lxml_subelement(serial, "protocol", None, {'type':'raw'})
-	    self.lxml_subelement(serial, "target", None, {'type':'virtio', 'name':'org.fedoraproject.anaconda.log.0'})
-	    self.lxml_subelement(serial, "address", None, {'type':'virtio-serial', 'controller':'0', 'bus':'0', 'port':'0'})
+            self.lxml_subelement(serial, "target", None, {'port':'1'})
         else:
             return super(FedoraGuest, self)._generate_serial_xml(devices, install_stage)
 

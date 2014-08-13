@@ -59,7 +59,6 @@ class Guest(object):
         """
         if self.libvirt_type is None:
             doc = lxml.etree.fromstring(self.libvirt_conn.getCapabilities())
-
             if len(doc.xpath("/capabilities/guest/arch/domain[@type='kvm']")) > 0:
                 self.libvirt_type = 'kvm'
             elif len(doc.xpath("/capabilities/guest/arch/domain[@type='qemu']")) > 0:
@@ -218,6 +217,9 @@ class Guest(object):
         self.icicle_tmp = os.path.join(self.data_dir, "icicletmp",
                                        self.tdl.name)
         self.listen_domain_socket = os.path.join("/tmp","oz-listenter-%s" % (self.uuid))
+
+        self.install_logging_domain_socket_base = os.path.join("/tmp","oz-listenter-%s" % (self.uuid))
+        self.install_logging_domain_sockets = [ ]
 
         self.connect_to_libvirt()
 
@@ -733,37 +735,50 @@ class Guest(object):
         origcount = count
         saved_exception = None
 
-        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        sock.settimeout(1)
-        sock.connect(self.listen_domain_socket)
-        data = StringIO.StringIO()
+        socket_work_list = [ ]
+        for socket_filename in self.install_logging_domain_sockets:
+            sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            sock.settimeout(0.1)
+            sock.connect(socket_filename)
+            data = StringIO.StringIO()
+            socket_work_list.append( { 'socket':sock, 'data':data, 'filename':socket_filename } )
 
         while count > 0 and inactivity_countdown > 0:
             if count % 10 == 0:
                 self.log.debug("Waiting for %s to finish installing, %d/%d" % (self.tdl.name, count, origcount))
-            do_sleep = True
-            try:
-                # Save most recently logged location in string
-                origpos=data.tell()
-                # Now seek to end to write new content
-                data.seek(0,2)
-                data.write(sock.recv(10000))
-                # If we wrote successfully, return to original log point
-                data.seek(origpos)
-            except socket.timeout:
-                # the socket times out after 1 second.  We can just fall
-                # through to the below code because it is a noop, *except* that
-                # we don't want to sleep.  Set the flag
-                do_sleep = False
 
-	    for line in data:
-		if line[-1] != '\n':
-		    # This is an incomplete line - don't print it yet - move the pointer back
-		    # and allow it to print out on the next time around
-		    data.seek(0-len(line),2)
-		    break
-		else:
-		    self.log.debug(line.rstrip())
+            def _log_complete_lines(data, log):
+		for line in data:
+		    if line[-1] != '\n':
+			# This is an incomplete line - don't print it yet - move the pointer back
+			# and allow it to print out on the next time around
+			data.seek(0-len(line),2)
+			break
+		    else:
+                        log.debug(line.rstrip())
+
+            for socket_stream in socket_work_list:
+		# Save most recently logged location in string
+		data=socket_stream['data']
+		origpos=data.tell()
+		# Now seek to end to write new content
+		data.seek(0,2)
+		try:
+                    # Without some sort of limit on this loop we could end up with either frequent
+                    # small outputs or truly massive outputs keeping us in the stream log loop forever
+                    # This should cover most reasonable log quantities while protecting from an endless
+                    # loop.
+                    # The virtual serial port in particular tends to produce very short reads on recv()
+                    # calls.  In testing they were often 1 or 2 bytes.  This requires a very large number
+                    # of calls to keep up with the stream of early boot debug output from Anaconda
+                    # TODO: A better option?  Possibly a worker thread?
+                    for i in range(1, 102400):
+			data.write(socket_stream['socket'].recv(512))
+		except socket.timeout:
+                    pass
+                finally:
+		    data.seek(origpos)
+		    _log_complete_lines(data, self.log)
 
             try:
                 total_disk_req, total_net_bytes = self._get_disk_and_net_activity(libvirt_dom, disks, interfaces)
@@ -799,12 +814,12 @@ class Guest(object):
             last_disk_activity = total_disk_req
             last_network_activity = total_net_bytes
             count -= 1
-            if do_sleep:
-                time.sleep(1)
+            time.sleep(1)
 
         try:
-            sock.close()
-            os.unlink(self.listen_domain_socket)
+            for socket_stream in socket_work_list:
+                socket_stream['socket'].close()
+                os.unlink(socket_stream['filename'])
         except:
             pass
 
