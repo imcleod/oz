@@ -528,6 +528,12 @@ class Guest(object):
             imgtype = "qcow2"
         self.lxml_subelement(target, "format", None, {"type":imgtype})
 
+        # Preserve backwards compatibility with older qemu versions
+        # Without this, images generated on RHEL7 are not compatible with
+        # RHEL6 qemu
+        if imgtype == "qcow2" and libvirt.getVersion() >= 1001000:
+            self.lxml_subelement(target, "compat", "0.10", {})
+
         # FIXME: this makes the permissions insecure, but is needed since
         # libvirt launches guests as qemu:qemu
         permissions = self.lxml_subelement(target, "permissions")
