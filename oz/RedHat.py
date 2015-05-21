@@ -813,6 +813,59 @@ class RedHatLinuxCDYumGuest(RedHatLinuxCDGuest):
                                         repo.name.replace(" ", "_") + ".repo")
                 self.guest_execute_command(guestaddr, "rm -f " + filename,
                                            timeout=30)
+    def _do_virtio_conlog(self):
+        """
+        Method to determine if the guest should be presented with extra serial and virtio
+        devices for install logging.  Subclasses should override and return True where
+        appropriate.
+        """
+        return False
+
+    def _generate_serial_xml(self, devices, install_stage):
+        """
+        Method to generate the serial portion of the libvirt XML.
+        """
+        if install_stage and self._do_virtio_conlog():
+            #Newer versions of Anaconda look for a named virtio chanel and, if it is present
+            #pass a great deal of helpful debug info over it.  This change to the libvirt XML
+            #allows Oz to capture and log that information
+            socket_filename = self.install_logging_domain_socket_dir + "/virtio"
+            self.install_logging_domain_sockets.append(socket_filename)
+            virtio = self.lxml_subelement(devices, "channel", None, {'type':'unix'})
+            self.lxml_subelement(virtio, "source", None,
+                                  {'mode':'bind', 'path':socket_filename})
+            self.lxml_subelement(virtio, "protocol", None, {'type':'raw'})
+            self.lxml_subelement(virtio, "target", None, {'type':'virtio', 'name':'org.fedoraproject.anaconda.log.0'})
+            self.lxml_subelement(virtio, "address", None, {'type':'virtio-serial', 'controller':'0', 'bus':'0', 'port':'0'})
+
+            # Alas, some early boot information is only available via serial console
+            # so we create a socket for that as well and log output from both of them
+            socket_filename = self.install_logging_domain_socket_dir + "/ttyS1"
+            self.install_logging_domain_sockets.append(socket_filename)
+            serial = self.lxml_subelement(devices, "serial", None, {'type':'unix'})
+            self.lxml_subelement(serial, "source", None,
+                                 {'mode':'bind', 'path':socket_filename})
+            self.lxml_subelement(serial, "protocol", None, {'type':'raw'})
+            self.lxml_subelement(serial, "target", None, {'port':'1'})
+        else:
+            return super(RedHatLinuxCDYumGuest, self)._generate_serial_xml(devices, install_stage)
+
+    def _modify_libvirt_xml_for_serial(self, libvirt_xml):
+        """
+        Internal method to take input libvirt XML (which may have been provided
+        by the user) and add an appropriate serial section so that guest
+        announcement works properly.
+        NOTE: Using this function implies that we are doing a customize, not an initial install
+        We override here to delete the virtio section above if it was created, then call back to
+        the parent to delete any normal serial section and let it finish creating the new serial secion.
+        """
+        input_doc = lxml.etree.fromstring(libvirt_xml)
+        channelNodes = input_doc.xpath("/domain/devices/channel")
+        for node in channelNodes:
+            print "Removing node " + str(node)
+            node.getparent().remove(node)
+        return super(RedHatLinuxCDYumGuest, self)._modify_libvirt_xml_for_serial(lxml.etree.tostring(input_doc, pretty_print=True))
+
 
 class RedHatFDGuest(oz.Guest.FDGuest):
     """
