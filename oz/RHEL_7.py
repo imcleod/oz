@@ -34,6 +34,9 @@ class RHEL7Guest(oz.RedHat.RedHatLinuxCDYumGuest):
         oz.RedHat.RedHatLinuxCDYumGuest.__init__(self, tdl, config, auto,
                                                  output_disk, netdev, diskbus,
                                                  True, True, "cpio", macaddress)
+        # Extract lots of useful debug output that is pulled from the sockets created below
+        self.cmdline += " rd.debug systemd.log_level=debug systemd.log_target=console"
+        self.cmdline += " console=tty0 console=ttyS1"
 
     def _modify_iso(self):
         """
