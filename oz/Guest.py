@@ -223,7 +223,8 @@ class Guest(object):
         # Need to allow qemu access, just give away the directory
         subprocess.check_call(['chown', 'qemu:qemu', self._tmp_socket_dir])
         # We need to allow sVirt restricted domains access to our sockets
-        subprocess.check_call(['chcon', '-h', '-t', 'svirt_home_t', self._tmp_socket_dir])
+        # Set all labels to avoid errors when SELinux is disabled
+        subprocess.check_call(['chcon', '-h', 'unconfined_u:object_r:svirt_home_t:s0', self._tmp_socket_dir])
         self.listen_domain_socket = os.path.join(self._tmp_socket_dir, "serial")
 
         self.install_logging_domain_socket_dir = self._tmp_socket_dir
