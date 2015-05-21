@@ -57,6 +57,14 @@ class RHEL7Guest(oz.RedHat.RedHatLinuxCDYumGuest):
         """
         return oz.ozutil.generate_full_auto_path("RHEL7.auto")
 
+    def _do_virtio_conlog(self):
+        """
+        Method to determine if the guest should be presented with extra serial and virtio
+        devices for install logging.  RHEL 7 is the first RHEL to support this
+        """
+        return True
+
+
 def get_class(tdl, config, auto, output_disk=None, netdev=None, diskbus=None,
               macaddress=None):
     """
