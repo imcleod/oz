@@ -33,6 +33,7 @@ import oz.Guest
 import oz.Linux
 import oz.ozutil
 import oz.OzException
+import lxml
 
 class RedHatLinuxCDGuest(oz.Linux.LinuxCDGuest):
     """
