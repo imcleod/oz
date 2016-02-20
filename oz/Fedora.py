@@ -51,8 +51,13 @@ class FedoraGuest(oz.RedHat.RedHatLinuxCDYumGuest):
 
         # Extract lots of useful debug output that is pulled from the sockets created below
         if int(self.tdl.update) >= 14:
-           self.cmdline += " rd.debug systemd.log_level=debug systemd.log_target=console"
-           self.cmdline += " console=tty0 console=ttyS1"
+            if self.tdl.arch in [ 'ppc64', 'ppc64le' ]:
+                console_device = '/dev/hvc1'
+            else:
+                console_device = '/dev/ttyS1' 
+
+            self.cmdline += " rd.debug systemd.log_level=debug systemd.log_target=console"
+            self.cmdline += " console=tty0 console=%s" % (console_device)
 
     def _modify_iso(self):
         """
